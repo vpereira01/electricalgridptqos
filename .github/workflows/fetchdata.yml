@@ -12,6 +12,16 @@ jobs:
     
     steps:
       - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.WORKFLOW_GIT_ACCESS_TOKEN }}
 
       - name: fetchdata
         run: .github/workflows/fetch.sh
+
+      - name: push2repo
+        run: |
+          git config --global user.name "fetchdata.yml"
+          git config --global user.email "fetchdata.yml@example.com"
+          git add data/raw
+          git commit -m "${{ env.GITHUB_WORKFLOW }} run ${{ env.GITHUB_RUN_NUMBER }}"
+          git push
