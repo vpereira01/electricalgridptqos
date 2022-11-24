@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 baseDestDir=./data/raw
 destDir=$baseDestDir/$(date +%Y%m%d_%H%M%S)
