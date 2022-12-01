@@ -1,4 +1,4 @@
 #!/bin/bash -e
 
-jq -r '.records[] | [.recordid, .record_timestamp, .fields.extractiondatetime, .fields.zipcode, .fields.municipality] | @csv ' raw/*/*.json >> records/records.csv
-rm -r raw/*/*.json
+jq -r '.records[] | [.recordid, .record_timestamp, .fields.extractiondatetime, .fields.zipcode, .fields.municipality] | @csv ' data/raw/*/*.json >> data/records/records.csv
+rm -r data/raw/*/*.json
