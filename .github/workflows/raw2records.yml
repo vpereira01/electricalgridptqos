@@ -1,4 +1,4 @@
-name: fetchdata
+name: raw2records
 
 on:
   workflow_dispatch:
