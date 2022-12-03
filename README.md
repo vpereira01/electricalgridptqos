@@ -2,11 +2,13 @@
 
 <canvas id="myChart"></canvas>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.3/dist/Chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
 <script>
   // Parse the CSV file and create the data for the chart
   var data = [];
   var labels = [];
   var csv = "https://raw.githubusercontent.com/vpereira01/electricalgridptqos/master/data/records/records.csv";
+  // var csv = "data/records/records.csv";
   Papa.parse(csv, {
     header: true,
     download: true,
