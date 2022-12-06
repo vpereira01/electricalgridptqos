@@ -24,3 +24,7 @@ do
     sleep 0.2
     ((reqNum=reqNum+1))
 done
+
+# update latest records csv
+echo "\".recordid\", \".record_timestamp\", \".fields.extractiondatetime\", \".fields.zipcode\", \".fields.municipality\"" > data/records/latest.csv
+jq -r '.records[] | [.recordid, .record_timestamp, .fields.extractiondatetime, .fields.zipcode, .fields.municipality] | @csv ' $destDir/*.json >> data/records/latest.csv
