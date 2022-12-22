@@ -26,5 +26,5 @@ do
 done
 
 # update latest records csv
-echo "\".recordid\", \".record_timestamp\", \".fields.extractiondatetime\", \".fields.zipcode\", \".fields.municipality\"" > data/records/latest.csv
+echo "\".recordid\",\".record_timestamp\",\".fields.extractiondatetime\",\".fields.zipcode\",\".fields.municipality\"" > data/records/latest.csv
 jq -r '.records[] | [.recordid, .record_timestamp, .fields.extractiondatetime, .fields.zipcode, .fields.municipality] | @csv ' $destDir/*.json >> data/records/latest.csv
