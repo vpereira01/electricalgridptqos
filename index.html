@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Portugal Electrical Grid interruptions</title>
+  <script type='text/javascript'
+    src='https://www.bing.com/api/maps/mapcontrol?key=AqmuXxToRERfEIICFKJb4nwXTzdIk0033QYjMVmX3IM8oLzLzaAy-B1QEc8TAnOf'></script>
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <style>
+    #myMap {
+      height: 100%;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="myMap"></div>
+  <script>
+    //const csvFilePath = "data/records/latest.csv";
+    const csvFilePath = "https://raw.githubusercontent.com/vpereira01/electricalgridptqos/master/data/records/latest.csv";
+    // Load the CSV file
+    d3.csv(csvFilePath).then(function (data) {
+      // Create a map
+      var map = new Microsoft.Maps.Map('#myMap', {
+        center: new Microsoft.Maps.Location(39.3999, -8.2245), // Portugal coordinates
+        zoom: 8
+      });
+
+      // clean up empty records
+      data = data.filter(r => r[".fields.municipality"]);
+
+      // Load the Search module
+      Microsoft.Maps.loadModule('Microsoft.Maps.Search', function () {
+        // Loop through the data and geocode each municipality to obtain location information
+        data.forEach(function (d) {
+          // Create a location for the current municipality
+          var location = new Microsoft.Maps.Location(0, 0);
+
+          // Create a search manager to perform geocoding
+          var searchManager = new Microsoft.Maps.Search.SearchManager(map);
+
+          // Create a geocode request for the current municipality
+          var geocodeRequest = {
+            where: d[".fields.municipality"] + ", Portugal",
+            callback: function (geocodeResult) {
+              // Extract the latitude and longitude coordinates from the geocoding result
+              if (geocodeResult && geocodeResult.results && geocodeResult.results.length > 0) {
+                location = geocodeResult.results[0].location;
+
+                // Add the location information to the current record
+                d.latitude = location.latitude;
+                d.longitude = location.longitude;
+
+                // Add a pushpin to the map for the current record
+                var pushpin = new Microsoft.Maps.Pushpin(location, {
+                  title: d[".fields.municipality"],
+                  subTitle: d["d.fields.zipcode"]
+                });
+                Microsoft.Maps.Events.addHandler(pushpin, 'click', function () {
+                  var infobox = new Microsoft.Maps.Infobox(pushpin.getLocation(), {
+                    title: d[".fields.municipality"],
+                    description: d["d.fields.zipcode"]
+                  });
+                  map.entities.push(infobox);
+                });
+                map.entities.push(pushpin);
+              }
+            },
+            errorCallback: function (e) {
+              console.log(e);
+            }
+          };
+
+          // Perform the geocode request
+          searchManager.geocode(geocodeRequest);
+        });
+      });
+    }).catch(function (error) {
+      console.log(error);
+    });
+
+  </script>
+</body>
+
+</html>
