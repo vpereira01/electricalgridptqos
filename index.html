@@ -25,7 +25,9 @@
       // Create a map
       var map = new Microsoft.Maps.Map('#myMap', {
         center: new Microsoft.Maps.Location(39.3999, -8.2245), // Portugal coordinates
-        zoom: 8
+        zoom: 8,
+        mapTypeId: Microsoft.Maps.MapTypeId.grayscale,
+        supportedMapTypes: [Microsoft.Maps.MapTypeId.road, Microsoft.Maps.MapTypeId.aerial, Microsoft.Maps.MapTypeId.grayscale]
       });
 
       // clean up empty records
