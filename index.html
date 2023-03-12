@@ -57,7 +57,10 @@
       }
 
       // Load the Search module
-      Microsoft.Maps.loadModule('Microsoft.Maps.Search', function () {
+      Microsoft.Maps.loadModule(['Microsoft.Maps.Search', 'Microsoft.Maps.Clustering'], function () {
+
+        var pushpins = [];
+
         // Loop through the data and geocode each municipality to obtain location information
         data.forEach(function (d) {
           // Create a location for the current municipality
@@ -68,7 +71,7 @@
 
           // Create a geocode request for the current municipality
           var geocodeRequest = {
-            where: d[".fields.municipality"] + ", Portugal",
+            where: d[".fields.zipcode"] + ", " + d[".fields.municipality"] + ", Portugal",
             callback: function (geocodeResult) {
               // Extract the latitude and longitude coordinates from the geocoding result
               if (geocodeResult && geocodeResult.results && geocodeResult.results.length > 0) {
@@ -80,17 +83,10 @@
 
                 // Add a pushpin to the map for the current record
                 var pushpin = new Microsoft.Maps.Pushpin(location, {
-                  title: d[".fields.municipality"],
-                  subTitle: d["d.fields.zipcode"]
+                  title: d[".fields.zipcode"] + ", " + d[".fields.municipality"]
                 });
-                Microsoft.Maps.Events.addHandler(pushpin, 'click', function () {
-                  var infobox = new Microsoft.Maps.Infobox(pushpin.getLocation(), {
-                    title: d[".fields.municipality"],
-                    description: d["d.fields.zipcode"]
-                  });
-                  map.entities.push(infobox);
-                });
-                map.entities.push(pushpin);
+
+                pushpins.push(pushpin)
               }
             },
             errorCallback: function (e) {
@@ -101,6 +97,30 @@
           // Perform the geocode request
           searchManager.geocode(geocodeRequest);
         });
+
+        // Create a cluster layer with custom options
+        var clusterLayer = new Microsoft.Maps.ClusterLayer(pushpins, {
+          clusteredPinCallback: function (cluster) {
+            // Define a click event handler for the clustered pushpin
+            Microsoft.Maps.Events.addHandler(cluster, 'click', function (e) {
+              // Generate description base on container pushpins titles
+              var description = cluster.containedPushpins.map(function (pushpin) {
+                return pushpin.getTitle();
+              }).join('<br>');
+
+              // Create an infobox with information about the clustered pushpins
+              var infobox = new Microsoft.Maps.Infobox(e.target.getLocation(), {
+                title: 'Outages',
+                description: description
+              });
+
+              // Display the infobox on the map
+              infobox.setMap(map);
+            });
+          }
+        });
+
+        map.layers.insert(clusterLayer);
       });
     }).catch(function (error) {
       console.log(error);
