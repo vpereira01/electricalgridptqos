@@ -27,7 +27,8 @@
 <body>
   <div id="map-overlay">
     <h2>🇵🇹 Electrical Grid Outages</h2>
-    <p>Data provided by <a href="https://e-redes.opendatasoft.com/explore/dataset/outages-per-geography/information/">E-REDES</a></p>
+    <p>Data provided by <a
+        href="https://e-redes.opendatasoft.com/explore/dataset/outages-per-geography/information/">E-REDES</a></p>
   </div>
   <div id="myMap"></div>
   <script>
@@ -45,6 +46,15 @@
 
       // clean up empty records
       data = data.filter(r => r[".fields.municipality"]);
+
+      // display no outages message
+      if (data.length == 0) {
+        var mapOverlay = document.getElementById('map-overlay');
+        var pNoOutagesMessage = document.createElement('p');
+        pNoOutagesMessage.innerHTML = 'Currently no outages reported.';
+        mapOverlay.appendChild(pNoOutagesMessage);
+        return;
+      }
 
       // Load the Search module
       Microsoft.Maps.loadModule('Microsoft.Maps.Search', function () {
