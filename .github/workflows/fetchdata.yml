@@ -1,5 +1,8 @@
 name: fetchdata
 
+concurrency: 
+  group: auto-master-commit
+
 on:
   workflow_dispatch:
   schedule:

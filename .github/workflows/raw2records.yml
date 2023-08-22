@@ -1,5 +1,8 @@
 name: raw2records
 
+concurrency: 
+  group: auto-master-commit
+
 on:
   workflow_dispatch:
   schedule:
