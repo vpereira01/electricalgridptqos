@@ -28,4 +28,5 @@ jobs:
           git config --global user.email "raw2records.yml@example.com"
           git add data
           git commit -m "$GITHUB_WORKFLOW run $GITHUB_RUN_NUMBER"
+          git pull --rebase
           git push
