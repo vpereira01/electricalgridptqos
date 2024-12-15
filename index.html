@@ -4,12 +4,12 @@
 <head>
   <meta charset="utf-8" />
   <title>Portugal Electrical Grid interruptions</title>
-  <script type='text/javascript'
-    src='https://www.bing.com/api/maps/mapcontrol?key=AneXJHwtApMSjQ3Rtl9MfUmrv4iLrynBqYsuHfoGln-2sqi1I_ABs2EqYa0xteN7'></script>
+  <link rel="stylesheet" href="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.css" type="text/css">
+  <script src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.js"></script>
   <script src="https://d3js.org/d3.v5.min.js"></script>
   <style>
     #myMap {
-      height: 100%;
+      height: 100vh;
       width: 100%;
     }
 
@@ -32,22 +32,14 @@
   </div>
   <div id="myMap"></div>
   <script>
-    //const csvFilePath = "data/records/latest.csv";
     const csvFilePath = "https://raw.githubusercontent.com/vpereira01/electricalgridptqos/master/data/records/latest.csv";
+    
     // Load the CSV file
     d3.csv(csvFilePath).then(function (data) {
-      // Create a map
-      var map = new Microsoft.Maps.Map('#myMap', {
-        center: new Microsoft.Maps.Location(39.3999, -8.2245), // Portugal coordinates
-        zoom: 8,
-        mapTypeId: Microsoft.Maps.MapTypeId.grayscale,
-        supportedMapTypes: [Microsoft.Maps.MapTypeId.road, Microsoft.Maps.MapTypeId.aerial, Microsoft.Maps.MapTypeId.grayscale]
-      });
-
-      // clean up empty records
+      // Clean up empty records
       data = data.filter(r => r[".fields.municipality"]);
 
-      // display no outages message
+      // Display no outages message
       if (data.length == 0) {
         var mapOverlay = document.getElementById('map-overlay');
         var pNoOutagesMessage = document.createElement('p');
@@ -56,76 +48,103 @@
         return;
       }
 
-      // Load the Search module
-      Microsoft.Maps.loadModule(['Microsoft.Maps.Search', 'Microsoft.Maps.Clustering'], function () {
+      const subscriptionKey = '4GFIA7hQBBvNZi9ACsKWHSzkdxzyxmDpnlcBtlqn7PA34NsKhNcQJQQJ99ALAC5RqLJM3OneAAAgAZMP1dUS';
 
-        var pushpins = [];
+      // Initialize Azure Map
+      var map = new atlas.Map('myMap', {
+        center: [-8.2245, 39.3999],
+        zoom: 8,
+        style: 'grayscale_dark',
+        authOptions: {
+          authType: 'subscriptionKey',
+          subscriptionKey: subscriptionKey
+        }
+      });
 
-        // Loop through the data and geocode each municipality to obtain location information
+      map.events.add('ready', function () {
+        // Create a data source and add it to the map
+        var dataSource = new atlas.source.DataSource();
+        map.sources.add(dataSource);
+
+        // Process each location
         data.forEach(function (d) {
-          // Create a location for the current municipality
-          var location = new Microsoft.Maps.Location(0, 0);
+          var searchUrl = `https://atlas.microsoft.com/search/address/json?subscription-key=${subscriptionKey}&api-version=1.0&query=${encodeURIComponent(d[".fields.zipcode"] + ", " + d[".fields.municipality"] + ", Portugal")}`;
 
-          // Create a search manager to perform geocoding
-          var searchManager = new Microsoft.Maps.Search.SearchManager(map);
-
-          // Create a geocode request for the current municipality
-          var geocodeRequest = {
-            where: d[".fields.zipcode"] + ", " + d[".fields.municipality"] + ", Portugal",
-            callback: function (geocodeResult) {
-              // Extract the latitude and longitude coordinates from the geocoding result
-              if (geocodeResult && geocodeResult.results && geocodeResult.results.length > 0) {
-                location = geocodeResult.results[0].location;
-
-                // Add the location information to the current record
-                d.latitude = location.latitude;
-                d.longitude = location.longitude;
-
-                // Add a pushpin to the map for the current record
-                var pushpin = new Microsoft.Maps.Pushpin(location, {
-                  title: d[".fields.zipcode"] + ", " + d[".fields.municipality"]
-                });
-
-                pushpins.push(pushpin)
+          fetch(searchUrl)
+            .then(response => response.json())
+            .then(result => {
+              if (result.results && result.results.length > 0) {
+                // Add point to the data source
+                dataSource.add(new atlas.data.Feature(
+                  new atlas.data.Point([
+                    result.results[0].position.lon,
+                    result.results[0].position.lat
+                  ]), {
+                    title: d[".fields.zipcode"] + ", " + d[".fields.municipality"]
+                  }
+                ));
               }
-            },
-            errorCallback: function (e) {
-              console.log(e);
-            }
-          };
-
-          // Perform the geocode request
-          searchManager.geocode(geocodeRequest);
+            })
+            .catch(error => console.log(error));
         });
 
-        // Create a cluster layer with custom options
-        var clusterLayer = new Microsoft.Maps.ClusterLayer(pushpins, {
-          clusteredPinCallback: function (cluster) {
-            // Define a click event handler for the clustered pushpin
-            Microsoft.Maps.Events.addHandler(cluster, 'click', function (e) {
-              // Generate description base on container pushpins titles
-              var description = cluster.containedPushpins.map(function (pushpin) {
-                return pushpin.getTitle();
-              }).join('<br>');
+        // Create a symbol layer for the points
+        var symbolLayer = new atlas.layer.SymbolLayer(dataSource, null, {
+          iconOptions: {
+            image: 'marker-red'
+          }
+        });
+        map.layers.add(symbolLayer);
 
-              // Create an infobox with information about the clustered pushpins
-              var infobox = new Microsoft.Maps.Infobox(e.target.getLocation(), {
-                title: 'Outages',
-                description: description
-              });
+        // Add clustering
+        var clusterLayer = new atlas.layer.BubbleLayer(dataSource, null, {
+          radius: 12,
+          color: '#007faa',
+          strokeColor: 'white',
+          strokeWidth: 2,
+          filter: ['has', 'point_count']
+        });
+        map.layers.add(clusterLayer);
 
-              // Display the infobox on the map
-              infobox.setMap(map);
-            });
+        // Add cluster count labels
+        var clusterLabelLayer = new atlas.layer.SymbolLayer(dataSource, null, {
+          iconOptions: {
+            image: 'none'
+          },
+          textOptions: {
+            textField: ['get', 'point_count_abbreviated'],
+            offset: [0, 0.4],
+            color: 'white'
+          },
+          filter: ['has', 'point_count']
+        });
+        map.layers.add(clusterLabelLayer);
+
+        // Add click events for popups
+        map.events.add('click', symbolLayer, function (e) {
+          if (e.shapes && e.shapes.length > 0) {
+            var content = e.shapes[0].getProperties().title;
+            new atlas.Popup({
+              content: content,
+              position: e.position
+            }).open(map);
           }
         });
 
-        map.layers.insert(clusterLayer);
+        map.events.add('click', clusterLayer, function (e) {
+          var feature = e.shapes[0];
+          var clusteredPoints = dataSource.getClusterLeaves(feature, Infinity);
+          var content = clusteredPoints.map(point => point.getProperties().title).join('<br>');
+          
+          new atlas.Popup({
+            content: `<div style="padding:10px"><b>Outages</b><br>${content}</div>`,
+            position: e.position
+          }).open(map);
+        });
       });
     }).catch(function (error) {
       console.log(error);
     });
-
   </script>
 </body>
 
