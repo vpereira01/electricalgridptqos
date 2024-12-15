@@ -38,122 +38,154 @@
   </div>
   <div id="myMap"></div>
   <script>
-    const csvFilePath = "https://raw.githubusercontent.com/vpereira01/electricalgridptqos/master/data/records/latest.csv";
-    
-    // Load the CSV file
-    d3.csv(csvFilePath).then(function (data) {
-      // Clean up empty records
-      data = data.filter(r => r[".fields.municipality"]);
+    const CONFIG = {
+        csvFilePath: "https://raw.githubusercontent.com/vpereira01/electricalgridptqos/master/data/records/latest.csv",
+        subscriptionKey: '4GFIA7hQBBvNZi9ACsKWHSzkdxzyxmDpnlcBtlqn7PA34NsKhNcQJQQJ99ALAC5RqLJM3OneAAAgAZMP1dUS',
+        mapSettings: {
+            center: [-8.2245, 39.3999],
+            zoom: 6.2,
+            style: 'grayscale_dark',
+            bounds: [-9.5, 36.8, -6.1, 42.2] // Continental Portugal bounds
+        }
+    };
 
-      // Display no outages message if applicable
-      if (data.length == 0) {
-        var mapOverlay = document.getElementById('map-overlay');
-        var pNoOutagesMessage = document.createElement('p');
-        pNoOutagesMessage.innerHTML = 'Currently no outages reported.';
-        mapOverlay.appendChild(pNoOutagesMessage);
-      }
-
-      const subscriptionKey = '4GFIA7hQBBvNZi9ACsKWHSzkdxzyxmDpnlcBtlqn7PA34NsKhNcQJQQJ99ALAC5RqLJM3OneAAAgAZMP1dUS';
-
-      // Initialize Azure Map
-      var map = new atlas.Map('myMap', {
-        center: [-8.2245, 39.3999],
-        zoom: 6.2,
-        style: 'grayscale_dark',
-        authOptions: {
-          authType: 'subscriptionKey',
-          subscriptionKey: subscriptionKey
-        },
-        bounds: [-9.5, 36.8, -6.1, 42.2]
-      });
-
-      map.events.add('ready', function () {
-        // Only process data points if there are outages
-        if (data.length > 0) {
-          // Create a data source and add it to the map
-          var dataSource = new atlas.source.DataSource();
-          map.sources.add(dataSource);
-
-          // Process each location
-          data.forEach(function (d) {
-            var searchUrl = `https://atlas.microsoft.com/search/address/json?subscription-key=${subscriptionKey}&api-version=1.0&query=${encodeURIComponent(d[".fields.zipcode"] + ", " + d[".fields.municipality"] + ", Portugal")}`;
-
-            fetch(searchUrl)
-              .then(response => response.json())
-              .then(result => {
-                if (result.results && result.results.length > 0) {
-                  // Add point to the data source
-                  dataSource.add(new atlas.data.Feature(
-                    new atlas.data.Point([
-                      result.results[0].position.lon,
-                      result.results[0].position.lat
-                    ]), {
-                      title: d[".fields.zipcode"] + ", " + d[".fields.municipality"]
-                    }
-                  ));
-                }
-              })
-              .catch(error => console.log(error));
-          });
-
-          // Create a symbol layer for the points
-          var symbolLayer = new atlas.layer.SymbolLayer(dataSource, null, {
-            iconOptions: {
-              image: 'marker-red'
+    // Initialize map with configuration
+    function initializeMap() {
+        return new atlas.Map('myMap', {
+            ...CONFIG.mapSettings,
+            authOptions: {
+                authType: 'subscriptionKey',
+                subscriptionKey: CONFIG.subscriptionKey
             }
-          });
-          map.layers.add(symbolLayer);
+        });
+    }
 
-          // Add clustering
-          var clusterLayer = new atlas.layer.BubbleLayer(dataSource, null, {
+    // Handle case when no outages are reported
+    function displayNoOutagesMessage() {
+        const mapOverlay = document.getElementById('map-overlay');
+        const message = document.createElement('p');
+        message.innerHTML = 'Currently no outages reported.';
+        mapOverlay.appendChild(message);
+    }
+
+    // Create layers for map visualization
+    function createMapLayers(map, dataSource) {
+        // Symbol layer for individual markers
+        const symbolLayer = new atlas.layer.SymbolLayer(dataSource, null, {
+            iconOptions: { image: 'marker-red' }
+        });
+
+        // Cluster layer for grouped markers
+        const clusterLayer = new atlas.layer.BubbleLayer(dataSource, null, {
             radius: 12,
             color: '#007faa',
             strokeColor: 'white',
             strokeWidth: 2,
             filter: ['has', 'point_count']
-          });
-          map.layers.add(clusterLayer);
+        });
 
-          // Add cluster count labels
-          var clusterLabelLayer = new atlas.layer.SymbolLayer(dataSource, null, {
-            iconOptions: {
-              image: 'none'
-            },
+        // Labels for clusters
+        const clusterLabelLayer = new atlas.layer.SymbolLayer(dataSource, null, {
+            iconOptions: { image: 'none' },
             textOptions: {
-              textField: ['get', 'point_count_abbreviated'],
-              offset: [0, 0.4],
-              color: 'white'
+                textField: ['get', 'point_count_abbreviated'],
+                offset: [0, 0.4],
+                color: 'white'
             },
             filter: ['has', 'point_count']
-          });
-          map.layers.add(clusterLabelLayer);
+        });
 
-          // Add click events for popups
-          map.events.add('click', symbolLayer, function (e) {
+        map.layers.add(symbolLayer);
+        map.layers.add(clusterLayer);
+        map.layers.add(clusterLabelLayer);
+
+        return { symbolLayer, clusterLayer };
+    }
+
+    // Add click event handlers for popups
+    function setupClickHandlers(map, dataSource, layers) {
+        map.events.add('click', layers.symbolLayer, (e) => {
             if (e.shapes && e.shapes.length > 0) {
-              var content = e.shapes[0].getProperties().title;
-              new atlas.Popup({
-                content: content,
-                position: e.position
-              }).open(map);
+                new atlas.Popup({
+                    content: e.shapes[0].getProperties().title,
+                    position: e.position
+                }).open(map);
             }
-          });
+        });
 
-          map.events.add('click', clusterLayer, function (e) {
-            var feature = e.shapes[0];
-            var clusteredPoints = dataSource.getClusterLeaves(feature, Infinity);
-            var content = clusteredPoints.map(point => point.getProperties().title).join('<br>');
+        map.events.add('click', layers.clusterLayer, (e) => {
+            const clusteredPoints = dataSource.getClusterLeaves(e.shapes[0], Infinity);
+            const content = clusteredPoints
+                .map(point => point.getProperties().title)
+                .join('<br>');
             
             new atlas.Popup({
-              content: `<div style="padding:10px"><b>Outages</b><br>${content}</div>`,
-              position: e.position
+                content: `<div style="padding:10px"><b>Outages</b><br>${content}</div>`,
+                position: e.position
             }).open(map);
-          });
+        });
+    }
+
+    // Process location data and add to map
+    async function processLocation(dataSource, location) {
+        const searchUrl = `https://atlas.microsoft.com/search/address/json?subscription-key=${CONFIG.subscriptionKey}&api-version=1.0&query=${encodeURIComponent(location[".fields.zipcode"] + ", " + location[".fields.municipality"] + ", Portugal")}`;
+
+        try {
+            const response = await fetch(searchUrl);
+            const result = await response.json();
+            
+            if (result.results && result.results.length > 0) {
+                dataSource.add(new atlas.data.Feature(
+                    new atlas.data.Point([
+                        result.results[0].position.lon,
+                        result.results[0].position.lat
+                    ]), {
+                        title: `${location[".fields.zipcode"]}, ${location[".fields.municipality"]}`
+                    }
+                ));
+            }
+        } catch (error) {
+            console.error('Error processing location:', error);
         }
-      });
-    }).catch(function (error) {
-      console.log(error);
-    });
+    }
+
+    // Main initialization function
+    async function initialize() {
+        try {
+            // Initialize map first
+            const map = initializeMap();
+
+            map.events.add('ready', async () => {
+                try {
+                    const data = await d3.csv(CONFIG.csvFilePath);
+                    const filteredData = data.filter(r => r[".fields.municipality"]);
+
+                    if (filteredData.length === 0) {
+                        displayNoOutagesMessage();
+                        return;
+                    }
+
+                    const dataSource = new atlas.source.DataSource();
+                    map.sources.add(dataSource);
+
+                    // Process all locations
+                    filteredData.forEach(location => processLocation(dataSource, location));
+
+                    // Setup layers and click handlers
+                    const layers = createMapLayers(map, dataSource);
+                    setupClickHandlers(map, dataSource, layers);
+                } catch (error) {
+                    console.error('Error loading outage data:', error);
+                    displayNoOutagesMessage();
+                }
+            });
+        } catch (error) {
+            console.error('Error initializing map:', error);
+        }
+    }
+
+    // Start the application
+    initialize();
   </script>
 </body>
 
