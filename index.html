@@ -58,12 +58,13 @@
       // Initialize Azure Map
       var map = new atlas.Map('myMap', {
         center: [-8.2245, 39.3999],
-        zoom: 8,
+        zoom: 6.2,
         style: 'grayscale_dark',
         authOptions: {
           authType: 'subscriptionKey',
           subscriptionKey: subscriptionKey
-        }
+        },
+        bounds: [-9.5, 36.8, -6.1, 42.2]
       });
 
       map.events.add('ready', function () {
