@@ -45,13 +45,12 @@
       // Clean up empty records
       data = data.filter(r => r[".fields.municipality"]);
 
-      // Display no outages message
+      // Display no outages message if applicable
       if (data.length == 0) {
         var mapOverlay = document.getElementById('map-overlay');
         var pNoOutagesMessage = document.createElement('p');
         pNoOutagesMessage.innerHTML = 'Currently no outages reported.';
         mapOverlay.appendChild(pNoOutagesMessage);
-        return;
       }
 
       const subscriptionKey = '4GFIA7hQBBvNZi9ACsKWHSzkdxzyxmDpnlcBtlqn7PA34NsKhNcQJQQJ99ALAC5RqLJM3OneAAAgAZMP1dUS';
@@ -68,85 +67,88 @@
       });
 
       map.events.add('ready', function () {
-        // Create a data source and add it to the map
-        var dataSource = new atlas.source.DataSource();
-        map.sources.add(dataSource);
+        // Only process data points if there are outages
+        if (data.length > 0) {
+          // Create a data source and add it to the map
+          var dataSource = new atlas.source.DataSource();
+          map.sources.add(dataSource);
 
-        // Process each location
-        data.forEach(function (d) {
-          var searchUrl = `https://atlas.microsoft.com/search/address/json?subscription-key=${subscriptionKey}&api-version=1.0&query=${encodeURIComponent(d[".fields.zipcode"] + ", " + d[".fields.municipality"] + ", Portugal")}`;
+          // Process each location
+          data.forEach(function (d) {
+            var searchUrl = `https://atlas.microsoft.com/search/address/json?subscription-key=${subscriptionKey}&api-version=1.0&query=${encodeURIComponent(d[".fields.zipcode"] + ", " + d[".fields.municipality"] + ", Portugal")}`;
 
-          fetch(searchUrl)
-            .then(response => response.json())
-            .then(result => {
-              if (result.results && result.results.length > 0) {
-                // Add point to the data source
-                dataSource.add(new atlas.data.Feature(
-                  new atlas.data.Point([
-                    result.results[0].position.lon,
-                    result.results[0].position.lat
-                  ]), {
-                    title: d[".fields.zipcode"] + ", " + d[".fields.municipality"]
-                  }
-                ));
-              }
-            })
-            .catch(error => console.log(error));
-        });
+            fetch(searchUrl)
+              .then(response => response.json())
+              .then(result => {
+                if (result.results && result.results.length > 0) {
+                  // Add point to the data source
+                  dataSource.add(new atlas.data.Feature(
+                    new atlas.data.Point([
+                      result.results[0].position.lon,
+                      result.results[0].position.lat
+                    ]), {
+                      title: d[".fields.zipcode"] + ", " + d[".fields.municipality"]
+                    }
+                  ));
+                }
+              })
+              .catch(error => console.log(error));
+          });
 
-        // Create a symbol layer for the points
-        var symbolLayer = new atlas.layer.SymbolLayer(dataSource, null, {
-          iconOptions: {
-            image: 'marker-red'
-          }
-        });
-        map.layers.add(symbolLayer);
+          // Create a symbol layer for the points
+          var symbolLayer = new atlas.layer.SymbolLayer(dataSource, null, {
+            iconOptions: {
+              image: 'marker-red'
+            }
+          });
+          map.layers.add(symbolLayer);
 
-        // Add clustering
-        var clusterLayer = new atlas.layer.BubbleLayer(dataSource, null, {
-          radius: 12,
-          color: '#007faa',
-          strokeColor: 'white',
-          strokeWidth: 2,
-          filter: ['has', 'point_count']
-        });
-        map.layers.add(clusterLayer);
+          // Add clustering
+          var clusterLayer = new atlas.layer.BubbleLayer(dataSource, null, {
+            radius: 12,
+            color: '#007faa',
+            strokeColor: 'white',
+            strokeWidth: 2,
+            filter: ['has', 'point_count']
+          });
+          map.layers.add(clusterLayer);
 
-        // Add cluster count labels
-        var clusterLabelLayer = new atlas.layer.SymbolLayer(dataSource, null, {
-          iconOptions: {
-            image: 'none'
-          },
-          textOptions: {
-            textField: ['get', 'point_count_abbreviated'],
-            offset: [0, 0.4],
-            color: 'white'
-          },
-          filter: ['has', 'point_count']
-        });
-        map.layers.add(clusterLabelLayer);
+          // Add cluster count labels
+          var clusterLabelLayer = new atlas.layer.SymbolLayer(dataSource, null, {
+            iconOptions: {
+              image: 'none'
+            },
+            textOptions: {
+              textField: ['get', 'point_count_abbreviated'],
+              offset: [0, 0.4],
+              color: 'white'
+            },
+            filter: ['has', 'point_count']
+          });
+          map.layers.add(clusterLabelLayer);
 
-        // Add click events for popups
-        map.events.add('click', symbolLayer, function (e) {
-          if (e.shapes && e.shapes.length > 0) {
-            var content = e.shapes[0].getProperties().title;
+          // Add click events for popups
+          map.events.add('click', symbolLayer, function (e) {
+            if (e.shapes && e.shapes.length > 0) {
+              var content = e.shapes[0].getProperties().title;
+              new atlas.Popup({
+                content: content,
+                position: e.position
+              }).open(map);
+            }
+          });
+
+          map.events.add('click', clusterLayer, function (e) {
+            var feature = e.shapes[0];
+            var clusteredPoints = dataSource.getClusterLeaves(feature, Infinity);
+            var content = clusteredPoints.map(point => point.getProperties().title).join('<br>');
+            
             new atlas.Popup({
-              content: content,
+              content: `<div style="padding:10px"><b>Outages</b><br>${content}</div>`,
               position: e.position
             }).open(map);
-          }
-        });
-
-        map.events.add('click', clusterLayer, function (e) {
-          var feature = e.shapes[0];
-          var clusteredPoints = dataSource.getClusterLeaves(feature, Infinity);
-          var content = clusteredPoints.map(point => point.getProperties().title).join('<br>');
-          
-          new atlas.Popup({
-            content: `<div style="padding:10px"><b>Outages</b><br>${content}</div>`,
-            position: e.position
-          }).open(map);
-        });
+          });
+        }
       });
     }).catch(function (error) {
       console.log(error);
