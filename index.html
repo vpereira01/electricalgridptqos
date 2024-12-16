@@ -7,7 +7,6 @@
   <title>Portugal Electrical Grid interruptions</title>
   <link rel="stylesheet" href="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.css" type="text/css">
   <script src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.js"></script>
-  <script src="https://d3js.org/d3.v5.min.js"></script>
   <style>
     body {
       margin: 0;
@@ -71,7 +70,7 @@
   <div id="myMap"></div>
   <script>
     const CONFIG = {
-        csvFilePath: "https://raw.githubusercontent.com/vpereira01/electricalgridptqos/master/data/records/latest.csv",
+        apiEndpoint: 'https://e-redes.opendatasoft.com/api/explore/v2.1/catalog/datasets/outages-per-geography/records',
         subscriptionKey: '4GFIA7hQBBvNZi9ACsKWHSzkdxzyxmDpnlcBtlqn7PA34NsKhNcQJQQJ99ALAC5RqLJM3OneAAAgAZMP1dUS',
         mapSettings: {
             center: [-8.2245, 39.3999],
@@ -158,9 +157,51 @@
         });
     }
 
+    // Fetch data from E-REDES API
+    async function fetchOutageData() {
+        try {
+            const params = new URLSearchParams({
+                'limit': 20
+            });
+
+            const url = `${CONFIG.apiEndpoint}?${params.toString()}`;
+            console.log('Fetching from:', url);
+
+            const response = await fetch(url);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('API Response:', errorText);
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('API Response:', data);
+
+            // Check if the only result is the "no outages" indicator
+            if (data.results.length === 1 && 
+                data.results[0].zipcode === null && 
+                data.results[0].municipality === null && 
+                data.results[0].interrupcao_ativa === 1) {
+                return [];  // Return empty array to trigger "no outages" message
+            }
+
+            // Filter out any null records just in case
+            return data.results.filter(record => 
+                record.zipcode !== null && 
+                record.municipality !== null
+            );
+        } catch (error) {
+            console.error('Error fetching outage data:', error);
+            return [];
+        }
+    }
+
     // Process location data and add to map
-    async function processLocation(dataSource, location) {
-        const searchUrl = `https://atlas.microsoft.com/search/address/json?subscription-key=${CONFIG.subscriptionKey}&api-version=1.0&query=${encodeURIComponent(location[".fields.zipcode"] + ", " + location[".fields.municipality"] + ", Portugal")}`;
+    async function processLocation(dataSource, record) {
+        const location = record.fields;
+        if (!location.municipality) return;
+
+        const searchUrl = `https://atlas.microsoft.com/search/address/json?subscription-key=${CONFIG.subscriptionKey}&api-version=1.0&query=${encodeURIComponent(location.zipcode + ", " + location.municipality + ", Portugal")}`;
 
         try {
             const response = await fetch(searchUrl);
@@ -172,7 +213,7 @@
                         result.results[0].position.lon,
                         result.results[0].position.lat
                     ]), {
-                        title: `${location[".fields.zipcode"]}, ${location[".fields.municipality"]}`
+                        title: `${location.zipcode}, ${location.municipality}`
                     }
                 ));
             }
@@ -184,15 +225,16 @@
     // Main initialization function
     async function initialize() {
         try {
-            // Initialize map first
             const map = initializeMap();
 
             map.events.add('ready', async () => {
                 try {
-                    const data = await d3.csv(CONFIG.csvFilePath);
-                    const filteredData = data.filter(r => r[".fields.municipality"]);
+                    console.log('Fetching outage data...'); // Debug log
+                    const records = await fetchOutageData();
+                    console.log('Received records:', records.length); // Debug log
 
-                    if (filteredData.length === 0) {
+                    if (!records || records.length === 0) {
+                        console.log('No records found'); // Debug log
                         displayNoOutagesMessage();
                         return;
                     }
@@ -201,13 +243,15 @@
                     map.sources.add(dataSource);
 
                     // Process all locations
-                    filteredData.forEach(location => processLocation(dataSource, location));
+                    for (const record of records) {
+                        await processLocation(dataSource, record);
+                    }
 
                     // Setup layers and click handlers
                     const layers = createMapLayers(map, dataSource);
                     setupClickHandlers(map, dataSource, layers);
                 } catch (error) {
-                    console.error('Error loading outage data:', error);
+                    console.error('Error in map ready handler:', error);
                     displayNoOutagesMessage();
                 }
             });
