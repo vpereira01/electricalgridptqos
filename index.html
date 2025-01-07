@@ -199,15 +199,18 @@
     // Process location data and add to map
     async function processLocation(dataSource, record) {
         const location = record.fields;
-        if (!location.municipality) return;
+        if (!location?.municipality || !location?.zipcode) return;
 
         const searchUrl = `https://atlas.microsoft.com/search/address/json?subscription-key=${CONFIG.subscriptionKey}&api-version=1.0&query=${encodeURIComponent(location.zipcode + ", " + location.municipality + ", Portugal")}`;
 
         try {
             const response = await fetch(searchUrl);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
             const result = await response.json();
             
-            if (result.results && result.results.length > 0) {
+            if (result.results?.[0]?.position) {
                 dataSource.add(new atlas.data.Feature(
                     new atlas.data.Point([
                         result.results[0].position.lon,
@@ -219,6 +222,7 @@
             }
         } catch (error) {
             console.error('Error processing location:', error);
+            throw error; // Propagate error for retry handling
         }
     }
 
