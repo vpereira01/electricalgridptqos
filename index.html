@@ -198,10 +198,10 @@
 
     // Process location data and add to map
     async function processLocation(dataSource, record) {
-        const location = record.fields;
-        if (!location?.municipality || !location?.zipcode) return;
+        // The API response doesn't have a fields property, the data is directly in the record
+        if (!record?.municipality || !record?.zipcode) return;
 
-        const searchUrl = `https://atlas.microsoft.com/search/address/json?subscription-key=${CONFIG.subscriptionKey}&api-version=1.0&query=${encodeURIComponent(location.zipcode + ", " + location.municipality + ", Portugal")}`;
+        const searchUrl = `https://atlas.microsoft.com/search/address/json?subscription-key=${CONFIG.subscriptionKey}&api-version=1.0&query=${encodeURIComponent(record.zipcode + ", " + record.municipality + ", Portugal")}`;
 
         try {
             const response = await fetch(searchUrl);
@@ -216,7 +216,7 @@
                         result.results[0].position.lon,
                         result.results[0].position.lat
                     ]), {
-                        title: `${location.zipcode}, ${location.municipality}`
+                        title: `${record.zipcode}, ${record.municipality}`
                     }
                 ));
             }
