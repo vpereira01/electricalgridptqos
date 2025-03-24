@@ -1,0 +1,1 @@
+{"nhits": 1, "parameters": {"dataset": "outages-per-geography", "rows": 10, "start": 0, "facet": ["zipcode", "municipality"], "format": "json", "timezone": "UTC"}, "records": [{"datasetid": "outages-per-geography", "recordid": "bb81d4ac05bf19c78b112e773b5c6c98b411331e", "fields": {"extractiondatetime": "2025-03-24T09:54:00+00:00", "interrupcao_ativa": 1}}]}
